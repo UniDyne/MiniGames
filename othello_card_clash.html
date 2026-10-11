@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Othello: Card Clash</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #12161d;
+  --panel: #1b222d;
+  --panel2: #232c3a;
+  --text: #e8ecf1;
+  --dim: #93a1b3;
+  --accent: #f5b942;
+  --green: #2e7d4f;
+  --blue: #3b82f6;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px;
+}
+header {
+  width: 100%;
+  max-width: 980px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+h1 { font-size: 22px; letter-spacing: 1px; }
+h1 span { color: var(--accent); }
+#status { display: flex; gap: 10px; align-items: center; font-size: 14px; flex-wrap: wrap; }
+#status .chip {
+  background: var(--panel);
+  border: 1px solid #2c3646;
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+#turn.you { color: #7ee2a8; }
+#turn.ai { color: #f0a3a3; }
+#main {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+#board {
+  display: grid;
+  grid-template-columns: repeat(8, 54px);
+  grid-template-rows: repeat(8, 54px);
+  gap: 3px;
+  background: #173323;
+  padding: 8px;
+  border-radius: 8px;
+  border: 2px solid #0f2418;
+}
+.cell {
+  position: relative;
+  background: var(--green);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.cell:hover { filter: brightness(1.15); }
+.cell.valid::after {
+  content: '';
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 20%; height: 20%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: rgba(255,255,255,0.35);
+  pointer-events: none;
+}
+.cell.target {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+.disc {
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+}
+.disc.black {
+  background: radial-gradient(circle at 35% 30%, #4a4a52, #0c0c10 70%);
+  box-shadow: 0 2px 4px rgba(0,0,0,.6);
+}
+.disc.white {
+  background: radial-gradient(circle at 35% 30%, #ffffff, #c9cdd4 75%);
+  box-shadow: 0 2px 4px rgba(0,0,0,.5);
+}
+.disc.shielded { box-shadow: 0 0 0 3px var(--accent), 0 2px 6px rgba(0,0,0,.6); }
+#side {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.panel {
+  background: var(--panel);
+  border: 1px solid #2c3646;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin-bottom: 6px; }
+.panel ul { list-style: none; font-size: 12.5px; color: var(--dim); line-height: 1.5; }
+.panel li::before { content: '• '; color: var(--accent); }
+#log {
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 12px;
+  color: var(--dim);
+  line-height: 1.55;
+}
+#log .logline { border-bottom: 1px solid #232c3a; padding: 2px 0; }
+button {
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid #34435a;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+button:hover { background: #2c3a4f; }
+#pass { background: #5a3a2a; border-color: #7a4a2a; }
+#hand-area { width: 100%; max-width: 980px; margin-top: 14px; }
+#deckinfo {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--dim);
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+#hint { color: var(--accent); }
+#hand { display: flex; gap: 8px; flex-wrap: wrap; min-height: 130px; }
+.card {
+  width: 118px;
+  min-height: 124px;
+  background: linear-gradient(160deg, #26303f, #1a212c);
+  border: 1px solid #3a4a63;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  position: relative;
+  transition: transform .12s ease;
+}
+.card:hover { transform: translateY(-5px); }
+.card.selected {
+  transform: translateY(-10px);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(245,185,66,.4);
+}
+.card.disabled { opacity: .45; cursor: default; }
+.card.disabled:hover { transform: none; }
+.card .cost {
+  position: absolute;
+  top: -7px; left: -7px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  border: 2px solid #0f1520;
+}
+.card .cname { font-size: 13.5px; font-weight: 600; margin: 4px 0; }
+.card .cdesc { font-size: 11px; color: var(--dim); line-height: 1.4; }
+#overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.7);
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+#overlay-box {
+  background: var(--panel);
+  border: 1px solid #34435a;
+  border-radius: 12px;
+  padding: 32px 48px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+#overlay-text { font-size: 24px; font-weight: 700; }
+</style>
+</head>
+<body>
+<header>
+  <h1>OTHELLO: <span>CARD CLASH</span></h1>
+  <div id="status">
+    <span class="chip" id="turn"></span>
+    <span class="chip" id="score"></span>
+    <span class="chip" id="energy"></span>
+  </div>
+</header>
+<div id="main">
+  <div id="board"></div>
+  <div id="side">
+    <div class="panel">
+      <h2>How to play</h2>
+      <ul>
+        <li>Each turn: gain energy (ramps +1/turn, max 10), draw 1 card.</li>
+        <li>Play cards you can afford, then place one disc.</li>
+        <li>Discs flip enemy discs sandwiched in a line, standard Othello.</li>
+        <li>Shielded discs (gold ring) absorb one flip.</li>
+        <li>No valid move? Play cards, then Pass. Two passes in a row ends the game.</li>
+        <li>Most discs when the board fills (or both pass) wins.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h2>Log</h2>
+      <div id="log"></div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button id="pass" style="display:none">Pass</button>
+      <button id="newgame">New Game</button>
+    </div>
+  </div>
+</div>
+<div id="hand-area">
+  <div id="deckinfo">
+    <span id="deckcount"></span>
+    <span id="hint"></span>
+    <span id="aistat"></span>
+  </div>
+  <div id="hand"></div>
+</div>
+<div id="overlay">
+  <div id="overlay-box">
+    <div id="overlay-text"></div>
+    <button id="again">Play Again</button>
+  </div>
+</div>
+<script>
+const SIZE = 8;
+const HUMAN = 1, AI = 2;
+const DIRS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+const ORTHO = [[-1,0],[1,0],[0,-1],[0,1]];
+const CORNERS = [[0,0],[0,7],[7,0],[7,7]];
+const NEAR_CORNERS = [[0,1],[1,0],[1,1],[0,6],[1,5],[1,6],[6,0],[5,0],[5,1],[6,1],[6,7],[5,6],[5,7],[7,6]];
+
+const CARDS = {
+  draw:     { cost: 1, name: 'Draw',      desc: 'Draw 2 cards.', target: null },
+  strike:   { cost: 1, name: 'Strike',    desc: 'Flip one enemy disc.', target: 'enemy' },
+  ramp:     { cost: 1, name: 'Ramp',      desc: 'Gain +1 energy this turn.', target: null },
+  twin:     { cost: 2, name: 'Twin',      desc: 'Place one extra disc this turn.', target: null },
+  fortify:  { cost: 2, name: 'Fortify',   desc: 'Give one of your discs a shield. A shield absorbs the next flip.', target: 'ally' },
+  clone:    { cost: 3, name: 'Clone',     desc: 'Place a disc on any empty cell (no flips).', target: 'empty' },
+  rowsweep: { cost: 3, name: 'Row Sweep', desc: 'Flip all enemy discs in a row. Target an enemy disc in it.', target: 'enemy' },
+  colsweep: { cost: 3, name: 'Col Sweep', desc: 'Flip all enemy discs in a column. Target an enemy disc in it.', target: 'enemy' },
+  dominate: { cost: 4, name: 'Dominate',  desc: 'Flip a target enemy disc and all enemy discs orthogonally adjacent to it.', target: 'enemy' },
+  overlord: { cost: 6, name: 'Overlord',  desc: 'Flip every enemy disc on the board.', target: null },
+};
+const DECK_COUNTS = { draw:3, strike:3, ramp:2, twin:2, fortify:2, clone:2, rowsweep:2, colsweep:2, dominate:1, overlord:1 };
+
+let state = null;
+let selectedCard = -1;
+
+const boardEl = document.getElementById('board');
+const handEl = document.getElementById('hand');
+const logEl = document.getElementById('log');
+const turnEl = document.getElementById('turn');
+const scoreEl = document.getElementById('score');
+const energyEl = document.getElementById('energy');
+const passBtn = document.getElementById('pass');
+const deckCountEl = document.getElementById('deckcount');
+const aiStatEl = document.getElementById('aistat');
+const hintEl = document.getElementById('hint');
+const overlayEl = document.getElementById('overlay');
+const overlayText = document.getElementById('overlay-text');
+
+document.getElementById('newgame').onclick = newGame;
+document.getElementById('again').onclick = newGame;
+passBtn.onclick = onPass;
+
+function newGame() {
+  state = {
+    board: emptyBoard(),
+    shields: emptyBoard(),
+    current: HUMAN,
+    turnNum: { 1: 0, 2: 0 },
+    energy: 0,
+    hands: { 1: [], 2: [] },
+    decks: { 1: buildDeck(), 2: buildDeck() },
+    extraMoves: 0,
+    passes: 0,
+    over: false,
+    mustPass: false,
+  };
+  state.board[3][3] = AI;  state.board[3][4] = HUMAN;
+  state.board[4][3] = HUMAN; state.board[4][4] = AI;
+  for (let i = 0; i < 4; i++) { drawCard(HUMAN); drawCard(AI); }
+  selectedCard = -1;
+  logEl.innerHTML = '';
+  overlayEl.style.display = 'none';
+  log('New game. You are Black and move first.');
+  startTurn(HUMAN);
+  render();
+}
+
+function startTurn(p) {
+  state.turnNum[p]++;
+  state.energy = Math.min(10, state.turnNum[p]);
+  drawCard(p);
+  state.extraMoves = 0;
+  state.mustPass = validMoves(state.board, p).length === 0;
+  if (p === AI) setTimeout(aiTurn, 900);
+}
+
+function drawCard(p, n) {
+  n = n || 1;
+  for (let i = 0; i < n; i++) {
+    if (state.decks[p].length === 0) {
+      log(pname(p) + ' deck is empty — no draw.');
+      return;
+    }
+    if (state.hands[p].length >= 8) {
+      log(pname(p) + ' hand is full — card burned.');
+      state.decks[p].pop();
+      return;
+    }
+    state.hands[p].push(state.decks[p].pop());
+  }
+}
+
+function flipsFor(board, r, c, player) {
+  if (board[r][c] !== 0) return [];
+  const opp = 3 - player;
+  const out = [];
+  for (const [dr, dc] of DIRS) {
+    const line = [];
+    let rr = r + dr, cc = c + dc;
+    while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && board[rr][cc] === opp) {
+      line.push([rr, cc]);
+      rr += dr; cc += dc;
+    }
+    if (line.length > 0 && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && board[rr][cc] === player) {
+      out.push(...line);
+    }
+  }
+  return out;
+}
+
+function validMoves(board, player) {
+  const moves = [];
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+    if (flipsFor(board, r, c, player).length > 0) moves.push([r, c]);
+  }
+  return moves;
+}
+
+function flipCell(r, c, p) {
+  if (state.shields[r][c] > 0) {
+    state.shields[r][c]--;
+    return false;
+  }
+  state.board[r][c] = p;
+  return true;
+}
+
+function placeDisc(r, c, p) {
+  const flips = flipsFor(state.board, r, c, p);
+  state.passes = 0;
+  state.board[r][c] = p;
+  for (const [rr, cc] of flips) flipCell(rr, cc, p);
+  checkBoardFull();
+}
+
+function checkBoardFull() {
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+    if (state.board[r][c] === 0) return;
+  }
+  endGame();
+}
+
+function endGame() {
+  if (state.over) return;
+  state.over = true;
+  const b = countDiscs(HUMAN), w = countDiscs(AI);
+  const msg = b > w ? 'You win!' : (w > b ? 'The AI wins.' : "It's a draw.");
+  log('Game over: ' + msg + ' (Black ' + b + ', White ' + w + ')');
+  overlayText.textContent = msg + '  ' + b + ' — ' + w;
+  overlayEl.style.display = 'flex';
+  render();
+}
+
+function endTurn() {
+  if (state.over) return;
+  state.current = 3 - state.current;
+  startTurn(state.current);
+  render();
+}
+
+function onPass() {
+  if (!state || state.over || state.current !== HUMAN) return;
+  state.passes++;
+  log('You pass.');
+  if (state.passes >= 2) { endGame(); return; }
+  state.current = AI;
+  startTurn(AI);
+  render();
+}
+
+function validTargets(key, p) {
+  const opp = 3 - p;
+  const out = [];
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+    const v = state.board[r][c];
+    if (key === 'strike' && v === opp) out.push([r, c]);
+    else if (key === 'fortify' && v === p) out.push([r, c]);
+    else if ((key === 'rowsweep' || key === 'colsweep' || key === 'dominate') && v === opp) out.push([r, c]);
+    else if (key === 'clone' && v === 0) out.push([r, c]);
+  }
+  return out;
+}
+
+function cardPlayable(key, p) {
+  const card = CARDS[key];
+  if (!card.target) return true;
+  return validTargets(key, p).length > 0;
+}
+
+function playCard(p, idx, target) {
+  const key = state.hands[p][idx];
+  const card = CARDS[key];
+  const opp = 3 - p;
+  state.energy -= card.cost;
+  switch (key) {
+    case 'draw':
+      drawCard(p, 2);
+      break;
+    case 'strike':
+      flipCell(target[0], target[1], p);
+      break;
+    case 'ramp':
+      state.energy++;
+      break;
+    case 'twin':
+      state.extraMoves++;
+      break;
+    case 'fortify':
+      state.shields[target[0]][target[1]]++;
+      break;
+    case 'clone':
+      state.board[target[0]][target[1]] = p;
+      break;
+    case 'rowsweep':
+      for (let c = 0; c < 8; c++) {
+        if (state.board[target[0]][c] === opp) flipCell(target[0], c, p);
+      }
+      break;
+    case 'colsweep':
+      for (let r = 0; r < 8; r++) {
+        if (state.board[r][target[1]] === opp) flipCell(r, target[1], p);
+      }
+      break;
+    case 'dominate': {
+      const r = target[0], c = target[1];
+      flipCell(r, c, p);
+      for (const [dr, dc] of ORTHO) {
+        const rr = r + dr, cc = c + dc;
+        if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && state.board[rr][cc] === opp) flipCell(rr, cc, p);
+      }
+      break;
+    }
+    case 'overlord':
+      for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+        if (state.board[r][c] === opp) flipCell(r, c, p);
+      }
+      break;
+  }
+  state.hands[p].splice(idx, 1);
+  state.mustPass = validMoves(state.board, p).length === 0;
+  log(pname(p) + ' plays ' + card.name + '.');
+  checkBoardFull();
+}
+
+function onCardClick(i) {
+  if (!state || state.over || state.current !== HUMAN) return;
+  const key = state.hands[HUMAN][i];
+  const card = CARDS[key];
+  if (state.energy < card.cost || !cardPlayable(key, HUMAN)) return;
+  if (selectedCard === i) {
+    selectedCard = -1;
+    render();
+    return;
+  }
+  if (!card.target) {
+    playCard(HUMAN, i, null);
+    selectedCard = -1;
+    render();
+    return;
+  }
+  selectedCard = i;
+  render();
+}
+
+function onCellClick(r, c) {
+  if (!state || state.over || state.current !== HUMAN) return;
+  if (selectedCard >= 0) {
+    const key = state.hands[HUMAN][selectedCard];
+    if (validTargets(key, HUMAN).some(m => m[0] === r && m[1] === c)) {
+      playCard(HUMAN, selectedCard, [r, c]);
+      selectedCard = -1;
+      render();
+    }
+    return;
+  }
+  if (state.mustPass) return;
+  if (validMoves(state.board, HUMAN).some(m => m[0] === r && m[1] === c)) {
+    placeDisc(r, c, HUMAN);
+    if (state.over) { render(); return; }
+    if (state.extraMoves > 0 && validMoves(state.board, HUMAN).length > 0) {
+      state.extraMoves--;
+      log('Twin: you may place one more disc.');
+      render();
+      return;
+    }
+    endTurn();
+  }
+}
+
+function aiTurn() {
+  if (!state || state.over) return;
+  aiPlayCards();
+  if (state.over) { render(); return; }
+  const moves = validMoves(state.board, AI);
+  if (moves.length > 0) {
+    const m = bestMove(moves);
+    placeDisc(m[0], m[1], AI);
+    log('White places a disc.');
+    if (state.over) { render(); return; }
+    endTurn();
+  } else {
+    state.passes++;
+    log('White has no moves and passes.');
+    if (state.passes >= 2) { endGame(); return; }
+    endTurn();
+  }
+  render();
+}
+
+function aiPlayCards() {
+  for (let guard = 0; guard < 12; guard++) {
+    let played = false;
+    for (let i = 0; i < state.hands[AI].length; i++) {
+      const key = state.hands[AI][i];
+      const card = CARDS[key];
+      if (state.energy < card.cost) continue;
+      if (!cardPlayable(key, AI)) continue;
+      if (!aiWants(key)) continue;
+      const target = card.target ? aiTarget(key) : null;
+      if (card.target && !target) continue;
+      playCard(AI, i, target);
+      played = true;
+      break;
+    }
+    if (!played) return;
+  }
+}
+
+function aiWants(key) {
+  const b = countDiscs(HUMAN), w = countDiscs(AI);
+  switch (key) {
+    case 'overlord': return b >= 8;
+    case 'rowsweep': return maxInLine('row') >= 3;
+    case 'colsweep': return maxInLine('col') >= 3;
+    case 'strike': return b - w >= 3;
+    case 'fortify': return hasUnshieldedCorner(AI);
+    case 'clone': return emptyCornerExists();
+    case 'draw': return state.hands[AI].length <= 2;
+    case 'twin': return validMoves(state.board, AI).length >= 2;
+    case 'dominate': return b - w >= 2 && dominateValue() >= 2;
+    case 'ramp': return false;
+    default: return false;
+  }
+}
+
+function aiTarget(key) {
+  const t = validTargets(key, AI);
+  if (t.length === 0) return null;
+  switch (key) {
+    case 'strike': {
+      const edge = t.find(([r, c]) => isEdge(r, c));
+      return edge || t[0];
+    }
+    case 'fortify': {
+      const corner = t.find(([r, c]) => isCorner(r, c));
+      if (corner) return corner;
+      return t.find(([r, c]) => isEdge(r, c)) || t[0];
+    }
+    case 'rowsweep': {
+      let best = t[0];
+      for (const [r, c] of t) {
+        if (countRow(r, HUMAN) > countRow(best[0], HUMAN)) best = [r, c];
+      }
+      return best;
+    }
+    case 'colsweep': {
+      let best = t[0];
+      for (const [r, c] of t) {
+        if (countCol(c, HUMAN) > countCol(best[1], HUMAN)) best = [r, c];
+      }
+      return best;
+    }
+    case 'dominate': {
+      let best = t[0], bv = -1;
+      for (const [r, c] of t) {
+        const v = enemyNeighbors(r, c);
+        if (v > bv) { bv = v; best = [r, c]; }
+      }
+      return best;
+    }
+    case 'clone': {
+      const corner = t.find(([r, c]) => isCorner(r, c));
+      if (corner) return corner;
+      return t.find(([r, c]) => isEdge(r, c)) || t[0];
+    }
+    default: return t[0];
+  }
+}
+
+function bestMove(moves) {
+  let best = moves[0], bs = -Infinity;
+  for (const m of moves) {
+    const s = scoreMove(m, AI);
+    if (s > bs) { bs = s; best = m; }
+  }
+  return best;
+}
+
+function scoreMove(m, p) {
+  const r = m[0], c = m[1];
+  let s = 0;
+  if (isCorner(r, c)) s += 100;
+  else if (nearCorner(r, c)) s -= 40;
+  if (isEdge(r, c)) s += 4;
+  s += flipsFor(state.board, r, c, p).length * 2;
+  const b = state.board.map(row => row.slice());
+  b[r][c] = p;
+  s -= validMoves(b, 3 - p).length * 2;
+  return s;
+}
+
+function render() {
+  renderBoard();
+  renderHand();
+  renderStatus();
+}
+
+function renderBoard() {
+  boardEl.innerHTML = '';
+  const moves = (!state.over && state.current === HUMAN && !state.mustPass) ? validMoves(state.board, HUMAN) : [];
+  const targets = selectedCard >= 0 ? validTargets(state.hands[HUMAN][selectedCard], HUMAN) : [];
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      const v = state.board[r][c];
+      if (v !== 0) {
+        const disc = document.createElement('div');
+        disc.className = 'disc ' + (v === HUMAN ? 'black' : 'white') + (state.shields[r][c] > 0 ? ' shielded' : '');
+        cell.appendChild(disc);
+      }
+      if (moves.some(m => m[0] === r && m[1] === c)) cell.classList.add('valid');
+      if (targets.some(m => m[0] === r && m[1] === c)) cell.classList.add('target');
+      cell.onclick = () => onCellClick(r, c);
+      boardEl.appendChild(cell);
+    }
+  }
+}
+
+function renderHand() {
+  handEl.innerHTML = '';
+  state.hands[HUMAN].forEach((key, i) => {
+    const card = CARDS[key];
+    const playable = !state.over && state.current === HUMAN && state.energy >= card.cost && cardPlayable(key, HUMAN);
+    const div = document.createElement('div');
+    div.className = 'card' + (i === selectedCard ? ' selected' : '') + (playable ? '' : ' disabled');
+    div.innerHTML =
+      '<div class="cost">' + card.cost + '</div>' +
+      '<div class="cname">' + card.name + '</div>' +
+      '<div class="cdesc">' + card.desc + '</div>';
+    div.onclick = () => onCardClick(i);
+    handEl.appendChild(div);
+  });
+  deckCountEl.textContent = 'Your deck: ' + state.decks[HUMAN].length + ' cards';
+  aiStatEl.textContent = 'AI: ' + state.hands[AI].length + ' in hand, ' + state.decks[AI].length + ' in deck';
+}
+
+function renderStatus() {
+  const b = countDiscs(HUMAN), w = countDiscs(AI);
+  scoreEl.textContent = '● ' + b + '  ○ ' + w;
+  energyEl.textContent = '⚡ ' + state.energy + '/' + Math.min(10, state.turnNum[HUMAN]);
+  if (state.over) {
+    turnEl.textContent = 'Game over';
+    turnEl.className = 'chip';
+  } else if (state.current === HUMAN) {
+    turnEl.textContent = state.mustPass ? 'Your turn — no moves (Pass required)' : 'Your turn';
+    turnEl.className = 'chip you';
+  } else {
+    turnEl.textContent = 'AI thinking…';
+    turnEl.className = 'chip ai';
+  }
+  passBtn.style.display = (!state.over && state.current === HUMAN && state.mustPass) ? 'block' : 'none';
+  hintEl.textContent = selectedCard >= 0 ? 'Select a highlighted target cell — click the card again to cancel.' : '';
+}
+
+function log(msg) {
+  const div = document.createElement('div');
+  div.className = 'logline';
+  div.textContent = msg;
+  logEl.prepend(div);
+  while (logEl.children.length > 50) logEl.lastChild.remove();
+}
+
+function pname(p) { return p === HUMAN ? 'Black (you)' : 'White (AI)'; }
+function countDiscs(p) {
+  let n = 0;
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) if (state.board[r][c] === p) n++;
+  return n;
+}
+function countRow(r, p) {
+  let n = 0;
+  for (let c = 0; c < 8; c++) if (state.board[r][c] === p) n++;
+  return n;
+}
+function countCol(c, p) {
+  let n = 0;
+  for (let r = 0; r < 8; r++) if (state.board[r][c] === p) n++;
+  return n;
+}
+function maxInLine(kind) {
+  let best = 0;
+  for (let i = 0; i < 8; i++) {
+    best = Math.max(best, kind === 'row' ? countRow(i, HUMAN) : countCol(i, HUMAN));
+  }
+  return best;
+}
+function emptyBoard() { return Array.from({ length: 8 }, () => Array(8).fill(0)); }
+function isCorner(r, c) { return CORNERS.some(([a, b]) => a === r && b === c); }
+function isEdge(r, c) { return r === 0 || r === 7 || c === 0 || c === 7; }
+function nearCorner(r, c) { return NEAR_CORNERS.some(([a, b]) => a === r && b === c); }
+function emptyCornerExists() { return CORNERS.some(([r, c]) => state.board[r][c] === 0); }
+function hasUnshieldedCorner(p) {
+  return CORNERS.some(([r, c]) => state.board[r][c] === p && state.shields[r][c] === 0);
+}
+function enemyNeighbors(r, c) {
+  let n = 0;
+  for (const [dr, dc] of ORTHO) {
+    const rr = r + dr, cc = c + dc;
+    if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && state.board[rr][cc] === HUMAN) n++;
+  }
+  return n;
+}
+function dominateValue() {
+  let best = 0;
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+    if (state.board[r][c] === HUMAN) best = Math.max(best, enemyNeighbors(r, c));
+  }
+  return best;
+}
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function buildDeck() {
+  const d = [];
+  for (const [k, n] of Object.entries(DECK_COUNTS)) {
+    for (let i = 0; i < n; i++) d.push(k);
+  }
+  return shuffle(d);
+}
+
+newGame();
+</script>
+</body>
+</html>
